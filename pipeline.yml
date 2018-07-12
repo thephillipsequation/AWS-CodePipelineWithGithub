@@ -1,0 +1,124 @@
+---
+Description: Cross-Account Managed Active Directory Deployment
+AWSTemplateFormatVersion: '2010-09-09'
+
+
+Parameters:
+  GitBranch:
+    Type: String
+  GitRepo:
+    Type: String
+  GithubOwner:
+    Type: String
+  GitToken:
+    Type: String
+  PipelineName:
+    Type: String
+
+Resources:
+  PipelineBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+
+  CodebuildTest:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: ActiveDirectoryDeployTest
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/python:3.6.5
+      Artifacts:
+        Type: CODEPIPELINE
+      TimeoutInMinutes: 10
+      ServiceRole: !GetAtt CodePipelineRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            install:
+              commands:
+                - env
+                - pwd
+                - ls -la
+                - pip --version
+                - aws --version
+                - pip install --upgrade pip
+                - pip install --upgrade --upgrade-strategy eager awscli
+            build:
+              commands:
+                - python bin/test.py
+          artifacts:
+            files:
+              - '**/*'
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: codepipeline-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codepipeline.amazonaws.com
+            - cloudformation.amazonaws.com
+            - codecommit.amazonaws.com
+            - codebuild.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: codepipeline-service
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            -
+              Action: 
+                - '*'
+              Effect: Allow
+              Resource:
+                - '*'
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: GithubPipeline
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineBucket
+      RoleArn: !GetAtt CodePipelineRole.Arn
+      Stages:
+        - Name: CloneSource
+          Actions:
+            - Name: Github
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: Source
+              Configuration:
+                Owner: !Ref GithubOwner
+                Repo: !Ref GitRepo
+                Branch: !Ref GitBranch
+                OAuthToken: !Ref GitToken
+              RunOrder: 1
+        
+        - Name: Codebuild-Test
+          Actions: 
+            - Name: Codebuild-Test
+              InputArtifacts:
+                - Name: Source
+              OutputArtifacts:
+                - Name: DeployTest
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref CodebuildTest
+              RunOrder: 1
