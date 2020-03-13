@@ -1,17 +1,19 @@
 #!/bin/bash -ex
 CFN_TEMPLATE=pipeline.yml
-STACK_NAME=user-account-pipeline
+STACK_NAME=Demo-Pipeline
 AWS_PROFILE=default
 GIT_BRANCH=master
-GIT_REPO=AWS-User-Account-Creation
+GIT_REPO=AWS-CodePipelineWithGithub
 AWS_REGION=us-east-1
 GIT_OWNER=thephillipsequation
+PIPELINE_NAME=Demo-Pipeline
 
 PARAMETERS=" \
   ParameterKey=GitBranch,ParameterValue=${GIT_BRANCH} \
   ParameterKey=GitRepo,ParameterValue=${GIT_REPO} \
   ParameterKey=GitToken,ParameterValue=${GIT_TOKEN} \
   ParameterKey=GithubOwner,ParameterValue=${GIT_OWNER} \
+  ParamaterKey=PipelineName, ParameterValue=${PIPELINE_NAME}
   "
 
 WEBHOOK="{"webhook": 
